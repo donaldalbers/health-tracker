@@ -68,13 +68,25 @@ df = pd.DataFrame(raw_data)
 
 # Data Cleaning
 if not df.empty:
+    # 1. Force numeric conversion for numbers (coerce errors to 0)
     df['Calories'] = pd.to_numeric(df['Calories'], errors='coerce').fillna(0)
     df['Duration_Min'] = pd.to_numeric(df['Duration_Min'], errors='coerce').fillna(0)
     df['Distance_Mi'] = pd.to_numeric(df['Distance_Mi'], errors='coerce').fillna(0)
-    df['Date'] = pd.to_datetime(df['Date']).dt.date
-    # Create a proper Datetime object for filtering
-    df['Datetime'] = pd.to_datetime(df['Date'].astype(str) + ' ' + df['Time'].astype(str))
-    # Extract Day Name for Analysis
+    
+    # 2. Convert Date column safely
+    df['Date'] = pd.to_datetime(df['Date'], errors='coerce').dt.date
+    
+    # 3. Create Datetime safely (The part that failed)
+    # We use errors='coerce' to turn bad dates into "NaT" (Not a Time) instead of crashing
+    df['Datetime'] = pd.to_datetime(
+        df['Date'].astype(str) + ' ' + df['Time'].astype(str), 
+        errors='coerce'
+    )
+    
+    # 4. Drop rows with bad dates (Clean the data)
+    df = df.dropna(subset=['Date', 'Datetime'])
+    
+    # 5. Extract Day Name for Analysis
     df['Day_Name'] = pd.to_datetime(df['Date']).dt.day_name()
 
 # --- SIDEBAR: LOGGING ---
@@ -136,7 +148,8 @@ with st.sidebar.form(key=f'entry_form_{entry_mode}', clear_on_submit=True):
             distance = st.number_input("Distance (Miles)", min_value=0.0, step=0.1)
 
     if st.form_submit_button(label='Save Entry'):
-        row_data = [str(date_val), str(time_val), activity_type, item_name, calories, ex_type, duration, distance]
+        clean_time = time_val.strftime('%H:%M:%S')
+        row_data = [str(date_val), clean_time, activity_type, item_name, calories, ex_type, duration, distance]
         sheet.append_row(row_data)
         st.success("Saved!")
         # Reset session state
